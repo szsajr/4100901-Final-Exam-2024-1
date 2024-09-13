@@ -73,6 +73,29 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+/*
+ * Function to redirect printf output to UART.
+ *
+ * Purpose:
+ * This function overrides the standard `_write` function to allow the
+ * usage of `printf` in embedded systems without a standard output. It
+ * redirects the printf output to UART for debugging or serial communication.
+ *
+ * Parameters:
+ * - file: Not used, required by the function signature.
+ * - ptr: Pointer to the data to be transmitted.
+ * - len: Length of the data to be transmitted.
+ *
+ * Functionality:
+ * - It sends the data pointed to by `ptr` via UART using HAL_UART_Transmit.
+ * - It returns the length of the data transmitted.
+ *
+ * Use case:
+ * By using this function, any call to `printf` will output the message
+ * to the UART interface, which can be monitored with a serial console.
+ */
 int _write(int file, char *ptr, int len)
 {
   HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 10);
@@ -92,6 +115,28 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		HAL_UART_Receive_IT(&huart2, &usart2_data, 1);
 	}
 }
+
+
+/*
+ * Function to handle external interrupt callbacks for GPIO pins (keypad input).
+ *
+ * Purpose:
+ * This function is called when a GPIO interrupt occurs. It scans the keypad for the pressed key,
+ * handles special cases ('*' to reset the sequence, '#' to validate the password), and updates
+ * the OLED display and UART based on the input.
+ *
+ * Parameters:
+ * - GPIO_Pin: The pin number where the interrupt was triggered.
+ *
+ * Functionality:
+ * - Detects the key pressed on the keypad.
+ * - If '*' is pressed, the input sequence is reset.
+ * - If a valid key is pressed, it is added to the ring buffer and displayed on the OLED.
+ * - If '#' is pressed, the entered sequence is validated against a predefined correct sequence.
+ * - The result of the validation (correct or incorrect) is displayed on the OLED and transmitted via UART.
+ * - The buffer is reset after validation.
+ */
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -254,7 +299,29 @@ static void MX_I2C1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN I2C1_Init 2 */
-
+  /*
+   * Function to clear a specific line on the OLED screen.
+   *
+   * Purpose:
+   * This function is used to "delete" the contents of a specific line
+   * by writing spaces over it. This is useful when you want to update
+   * or remove text from a specific position on the OLED display.
+   *
+   * Parameters:
+   * - y_position: The vertical position (Y coordinate) of the line to clear.
+   *
+   * Functionality:
+   * - The function places the cursor at the start of the line.
+   * - It writes a string of spaces to overwrite any existing content on that line.
+   * - Finally, it updates the screen to reflect the changes.
+   */
+  void clear_line(uint8_t y_position) {
+      // Place the cursor at the beginning of the line
+      ssd1306_SetCursor(10, y_position);
+      // Write a line of spaces to "delete" the line
+      ssd1306_WriteString("                ", Font_6x8, Black);  // Adjust the number of spaces according to the screen size
+      ssd1306_UpdateScreen();
+  }
   /* USER CODE END I2C1_Init 2 */
 
 }
@@ -275,7 +342,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 256000;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
