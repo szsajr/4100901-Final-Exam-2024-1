@@ -117,7 +117,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	huart2.Init.BaudRate = 256000;  // Cambia la velocidad a 256000 baudios
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -315,13 +315,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ROW_4_GPIO_Port, ROW_4_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(COLUMN_1_GPIO_Port, COLUMN_1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ROW_1_GPIO_Port, ROW_1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(COLUMN_4_GPIO_Port, COLUMN_4_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, ROW_3_Pin|ROW_2_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, COLUMN_2_Pin|COLUMN_3_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -336,35 +336,35 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ROW_4_Pin */
-  GPIO_InitStruct.Pin = ROW_4_Pin;
+  /*Configure GPIO pin : COLUMN_1_Pin */
+  GPIO_InitStruct.Pin = COLUMN_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(ROW_4_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(COLUMN_1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ROW_1_Pin */
-  GPIO_InitStruct.Pin = ROW_1_Pin;
+  /*Configure GPIO pin : COLUMN_4_Pin */
+  GPIO_InitStruct.Pin = COLUMN_4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(ROW_1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(COLUMN_4_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : ROW_3_Pin ROW_2_Pin */
-  GPIO_InitStruct.Pin = ROW_3_Pin|ROW_2_Pin;
+  /*Configure GPIO pins : COLUMN_2_Pin COLUMN_3_Pin */
+  GPIO_InitStruct.Pin = COLUMN_2_Pin|COLUMN_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : COL_4_Pin */
-  GPIO_InitStruct.Pin = COL_4_Pin;
+  /*Configure GPIO pin : ROW_1_Pin */
+  GPIO_InitStruct.Pin = ROW_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(COL_4_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(ROW_1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : COL_3_Pin COL_1_Pin COL_2_Pin */
-  GPIO_InitStruct.Pin = COL_3_Pin|COL_1_Pin|COL_2_Pin;
+  /*Configure GPIO pins : ROW_2_Pin ROW_4_Pin ROW_3_Pin */
+  GPIO_InitStruct.Pin = ROW_2_Pin|ROW_4_Pin|ROW_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
