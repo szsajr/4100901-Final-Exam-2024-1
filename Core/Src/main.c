@@ -51,15 +51,25 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+
 #define KEYPAD_RB_LEN 4
+#define USART2_RB_LEN 6
+
 uint8_t keypad_data = 0xFF;
+uint8_t usart2_data = 0xFF;
+
 uint8_t keypad_buffer[KEYPAD_RB_LEN];
 ring_buffer_t keypad_rb;
 
-#define USART2_RB_LEN 4
-uint8_t usart2_data = 0xFF;
 uint8_t usart2_buffer[USART2_RB_LEN];
 ring_buffer_t usart2_rb;
+
+uint16_t keypad_input_value = 0;
+uint32_t usart_input_value = 0;
+uint32_t sum_result = 0;
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,6 +77,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
+
+void process_sum(void);
+void reset_values(void);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -101,57 +115,193 @@ int _write(int file, char *ptr, int len)
   HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 10);
   return len;
 }
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+/*
+ * Función para reiniciar los valores ingresados
+ *
+ * Propósito:
+ * Esta función reinicia los valores ingresados tanto por el teclado
+ * como por USART, limpiando los valores almacenados en las variables
+ * `keypad_input_value` y `usart_input_value`.
+ *
+ * Funcionalidad:
+ * - Restablece a 0 los valores de las entradas del keypad y USART.
+ * - Limpia la pantalla OLED y muestra un mensaje indicando que los valores han sido reiniciados.
+ * - Envía un mensaje a través de UART informando que los valores han sido reiniciados.
+ *
+ * Uso:
+ * Se utiliza para restablecer el sistema cuando se presiona la tecla '*' en el teclado.
+ */
+void reset_values(void)
 {
-	/* Data received in USART2 */
-	if (huart->Instance == USART2) {
-		if (usart2_data >= '0' && usart2_data <= '9') {
-			ring_buffer_write(&usart2_rb, usart2_data);
-			if (ring_buffer_is_full(&keypad_rb) != 0) {
+    keypad_input_value = 0;
+    usart_input_value = 0;
 
-			}
-		}
-		HAL_UART_Receive_IT(&huart2, &usart2_data, 1);
-	}
+    // Limpiar la pantalla OLED y mostrar un mensaje
+    ssd1306_Fill(Black);
+    ssd1306_SetCursor(10, 20);
+    ssd1306_WriteString("Valores reiniciados", Font_6x8, White);
+    ssd1306_UpdateScreen();
+
+    // Mostrar mensaje en la UART
+    printf("Valores reiniciados\r\n");
 }
 
 
 /*
- * Function to handle external interrupt callbacks for GPIO pins (keypad input).
+ * Función para procesar la suma de los valores ingresados
  *
- * Purpose:
- * This function is called when a GPIO interrupt occurs. It scans the keypad for the pressed key,
- * handles special cases ('*' to reset the sequence, '#' to validate the password), and updates
- * the OLED display and UART based on the input.
+ * Propósito:
+ * Esta función toma los valores ingresados a través del keypad y USART,
+ * los suma y muestra el resultado tanto en la pantalla OLED como a través
+ * de UART. Además, enciende o apaga un LED dependiendo de si el resultado es par o impar.
  *
- * Parameters:
- * - GPIO_Pin: The pin number where the interrupt was triggered.
+ * Funcionalidad:
+ * - Suma los valores almacenados en `keypad_input_value` y `usart_input_value`.
+ * - Muestra el resultado de la suma en la pantalla OLED y lo envía por UART.
+ * - Verifica si el resultado es par o impar:
+ *   - Si es par, enciende el LED.
+ *   - Si es impar, apaga el LED.
  *
- * Functionality:
- * - Detects the key pressed on the keypad.
- * - If '*' is pressed, the input sequence is reset.
- * - If a valid key is pressed, it is added to the ring buffer and displayed on the OLED.
- * - If '#' is pressed, the entered sequence is validated against a predefined correct sequence.
- * - The result of the validation (correct or incorrect) is displayed on the OLED and transmitted via UART.
- * - The buffer is reset after validation.
+ * Uso:
+ * Se activa cuando se presiona el botón B1 en el sistema.
  */
+void process_sum(void)
+{
+    sum_result = keypad_input_value + usart_input_value;
+
+    // Mostrar el resultado en la pantalla OLED y en la UART
+    ssd1306_Fill(Black);
+    ssd1306_SetCursor(10, 20);
+    char result_str[20];
+    sprintf(result_str, "Suma: %lu", sum_result);
+    ssd1306_WriteString(result_str, Font_6x8, White);
+
+    // Imprimir si es par o impar en el OLED
+    ssd1306_SetCursor(10, 40);
+    if (sum_result % 2 == 0) {
+        ssd1306_WriteString("Resultado: Par", Font_6x8, White);
+        HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);  // Encender LED si es par
+    } else {
+        ssd1306_WriteString("Resultado: Impar", Font_6x8, White);
+        HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);  // Apagar LED si es impar
+    }
+
+    ssd1306_UpdateScreen();
+    printf("Resultado de la suma: %lu\r\n", sum_result);
+}
 
 
+/*
+ * Callback de recepción de datos por USART2
+ *
+ * Propósito:
+ * Esta función se ejecuta cada vez que se recibe un dato a través de la UART2.
+ * Almacena los dígitos recibidos en un buffer circular y procesa el valor cuando
+ * se ha recibido un número completo de hasta 6 dígitos.
+ *
+ * Funcionalidad:
+ * - Almacena los dígitos recibidos (si son numéricos) en el buffer circular.
+ * - Cuando se han recibido 6 dígitos, los convierte a un valor numérico.
+ * - Imprime el valor recibido en la terminal UART y lo muestra en la pantalla OLED.
+ *
+ * Uso:
+ * Esta función se llama automáticamente cuando se recibe un nuevo dato en la UART
+ * y está configurada para trabajar con interrupciones.
+ */
+/* USART2 Callback ------------------------------------------------------------*/
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART2) {
+        // Si recibe un dígito, almacena en el buffer
+        if (usart2_data >= '0' && usart2_data <= '9') {
+            ring_buffer_write(&usart2_rb, usart2_data);
+        }
+
+        // Verifica si el buffer está lleno (6 dígitos)
+        if (ring_buffer_size(&usart2_rb) >= 6) {
+            char usart_str[7];
+            for (int i = 0; i < 6; i++) {
+                ring_buffer_read(&usart2_rb, (uint8_t *)&usart_str[i]);
+            }
+            usart_str[6] = '\0';
+            usart_input_value = strtol(usart_str, NULL, 10);
+            printf("USART Input: %lu\r\n", usart_input_value);
+
+            // Imprimir valor recibido por USART en OLED
+            ssd1306_Fill(Black);
+            ssd1306_SetCursor(10, 30);  // Ajustar posición en la pantalla
+            char usart_oled_str[20];
+            sprintf(usart_oled_str, "USART: %lu", usart_input_value);
+            ssd1306_WriteString(usart_oled_str, Font_6x8, White);
+            ssd1306_UpdateScreen();
+        }
+
+        HAL_UART_Receive_IT(&huart2, &usart2_data, 1);
+    }
+}
+
+/*
+/*
+ * Callback de manejo de interrupciones externas (Keypad y Botón B1)
+ *
+ * Propósito:
+ * Esta función se ejecuta cuando se detecta una interrupción en los pines configurados
+ * para el keypad o el botón B1. Procesa los dígitos ingresados por el keypad y realiza
+ * la suma de valores cuando se presiona el botón B1.
+ *
+ * Funcionalidad:
+ * - Si el botón B1 es presionado, se realiza la suma de los valores ingresados.
+ * - Si se presiona el '*' en el keypad, se reinician los valores ingresados.
+ * - Si se ingresan 4 dígitos en el keypad, estos se convierten en un valor numérico y
+ *   se muestran tanto en la pantalla OLED como en la terminal UART.
+ *
+ * Uso:
+ * Esta función se llama automáticamente cuando se detecta una interrupción en el pin
+ * asociado al keypad o al botón B1.
+ */
+/* Keypad and button Callback ------------------------------------------------------------*/
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if (GPIO_Pin == B1_Pin) {
+    if (GPIO_Pin == B1_Pin) {
+        // Procesar suma cuando se presiona el botón B1
+        process_sum();
+        return;
+    }
 
-		return;
-	}
-	uint8_t key_pressed = keypad_scan(GPIO_Pin);
-	if (key_pressed != 0xFF) {
-		ring_buffer_write(&keypad_rb, keypad_data);
-		if (ring_buffer_is_full(&keypad_rb) != 0) {
+    // Manejo del keypad
+    uint8_t key_pressed = keypad_scan(GPIO_Pin);
+    if (key_pressed != 0xFF) {
+        if (key_pressed == '*') {
+            // Reiniciar valores si se presiona '*'
+            reset_values();
+        } else {
+            ring_buffer_write(&keypad_rb, key_pressed);
 
-		}
-	}
+            // Verifica si el buffer del keypad está lleno (4 dígitos)
+            if (ring_buffer_size(&keypad_rb) >= 4) {
+                char keypad_str[5];
+                for (int i = 0; i < 4; i++) {
+                    ring_buffer_read(&keypad_rb, (uint8_t *)&keypad_str[i]);
+                }
+                keypad_str[4] = '\0';
+                keypad_input_value = strtol(keypad_str, NULL, 16);
+                printf("Keypad Input: %u\r\n", keypad_input_value);
+
+                // Imprimir valor ingresado por keypad en OLED
+                ssd1306_Fill(Black);
+                ssd1306_SetCursor(10, 40);  // Ajustar posición en la pantalla
+                char keypad_oled_str[20];
+                sprintf(keypad_oled_str, "Keypad: %u", keypad_input_value);
+                ssd1306_WriteString(keypad_oled_str, Font_6x8, White);
+                ssd1306_UpdateScreen();
+            }
+        }
+    }
 }
+
+
+
+
 /* USER CODE END 0 */
 
 /**
@@ -186,10 +336,16 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+
+
+  // initialize the two circular buffers
+  ring_buffer_init(&keypad_rb, keypad_buffer, KEYPAD_RB_LEN);
+  ring_buffer_init(&usart2_rb, usart2_buffer, USART2_RB_LEN);
+  // intializing oled screen
   ssd1306_Init();
   ssd1306_Fill(Black);
   ssd1306_SetCursor(20, 20);
-  ssd1306_WriteString("Welcome!", Font_7x10, White);
+  ssd1306_WriteString("starting arithmetic software", Font_7x10, White);
   ssd1306_UpdateScreen();
 
   HAL_UART_Receive_IT(&huart2, &usart2_data, 1);
@@ -197,10 +353,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  printf("Starting\r\n");
+  printf("Starting arithmetic software \r\n");
   while (1)
   {
-    /* USER CODE END WHILE */
+    /* USER CODE E ND WHILE */
 
     /* USER CODE BEGIN 3 */
   }
@@ -425,13 +581,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : COL_4_Pin */
-  GPIO_InitStruct.Pin = COL_4_Pin;
+  GPIO_InitStruct.Pin = COLUMN_4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(COL_4_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(COLUMN_4_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : COL_3_Pin COL_1_Pin COL_2_Pin */
-  GPIO_InitStruct.Pin = COL_3_Pin|COL_1_Pin|COL_2_Pin;
+  GPIO_InitStruct.Pin = COLUMN_3_Pin|COLUMN_1_Pin|COLUMN_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
